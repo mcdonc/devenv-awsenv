@@ -1,0 +1,9 @@
+Proposed cmdline UI:
+
+  awsenv edit <envname>
+  awsenv switch <envname>
+  awsenv auth
+  awsenv copy <envname> <envname>
+  awsenv rm <envname>
+  awsenv default <envname>
+
