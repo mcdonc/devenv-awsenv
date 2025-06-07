@@ -11,7 +11,7 @@
       type = lib.types.package;
       default = pkgs.awscli2;
       defaultText = lib.literalExpression "pkgs.awscli2";
-      description = "The awscli2 pacakge to use";
+      description = "The awscli2 pacakge that awsenv should use";
     };
   };
   config =
@@ -46,12 +46,12 @@
       keyringpyexe = "${keyring_python}/bin/python";
     in
       lib.mkIf cfg.enable {
+        scripts.awsenv.exec = ''exec ${keyringpyexe} "$DEVENV_ROOT/../awsenv.py" $@'';
+        scripts.keyringpyexe.exec = keyringpyexe;
+        scripts.awsenv-aws.exec = ''exec ${cfg.package}/bin/aws $@'';
         enterShell = lib.mkAfter ''
           echo ${boolToStr cfg.enable}
           echo $DEVENV_ROOT
       '';
-        scripts.awsenv.exec = ''exec ${keyringpyexe} "$DEVENV_ROOT/../awsenv.py" $@'';
-        scripts.keyringpyexe.exec = keyringpyexe;
-        packages = [ cfg.package ];
       };
 }

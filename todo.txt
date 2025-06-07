@@ -1,9 +1,36 @@
 Proposed cmdline UI:
 
-  awsenv edit <envname>
-  awsenv switch <envname>
-  awsenv auth
-  awsenv copy <envname> <envname>
-  awsenv rm <envname>
-  awsenv default <envname>
+X  awsenv edit <envname>
+X  awsenv mfa
+X  awsenv copy <envname> <envname>
+X  awsenv rm <envname>
+X  awsenv switch <envname>
+X  awsenv list
 
+We need these inputs:
+
+  aws account id
+  aws secret access key
+  aws access key id
+  aws default region
+  aws default output
+  mfa device
+  otp auth secret
+
+We need to store these values:
+
+  aws account id
+  aws secret access key
+  aws access key id
+  aws default region
+  aws default output
+  mfa device
+  otp auth secret
+
+  derived secret access key
+  derived access key id
+  derived session token
+  derived session expires
+
+Delete derived if aws account id, aws secret access key, aws access key id, mfa
+device, or opt auth secret are changed.

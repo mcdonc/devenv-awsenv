@@ -4,4 +4,8 @@
   imports = [ ../default.nix ];
 
   awsenv.enable = true;
+
+  enterShell = ''
+    eval "$(awsenv export)"
+  '';
 }
