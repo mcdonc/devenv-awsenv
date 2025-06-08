@@ -22,12 +22,13 @@ moment.
 It handles MFA authentication, and will prompt you for a code whenever
 necessary. Alternately, it allows you to provide the environment with an MFA
 OTP authentication secret such that you are never asked for the code; the
-system will generate MFA codes for you instead.
+system will generate MFA codes for you instead (see "Obtaining Your OTP MFA
+Authenticator Secret" below).
 
 Enviroment settings are shared between terminals and windows, so you won't need
 to rerun MFA authentication for every shell you start.
 
-It also manages AWS profiles related to each environment.
+It also optionally manages AWS profiles in ``~/.aws`` related to each environment.
 
 Setting It Up
 -------------
@@ -63,7 +64,7 @@ example:
 Once it is enabled, each time ``devenv shell`` starts, it will attempt to add
 environment variables to the shell environment related to AWS.  Tools like
 aws-cli will use these environment values instead of attempting to use a
-profile from ``~/.aws``.
+profile from ``~/.aws`` unless ``awsenv.manage-profiles`` is ``true``.
 
 It will also attempt to authenticate with AWS using the default environmment
 settings at shell startup time.
@@ -155,6 +156,16 @@ they are shared by all devenv environments that you use on the system.
 
    options:
      -h, --help            show this help message and exit
+
+If Your MFA Token Expires
+-------------------------
+
+You can either run this command::
+
+  awsenv auth && eval "$(awsenv export)"
+
+Or exit the devenv shell and start it again/
+
 
 Obtaining Your MFA Device name
 ------------------------------
