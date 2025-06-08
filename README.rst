@@ -55,6 +55,8 @@ example:
      imports = [ devenv-awsenv.plugin ];
 
      awsenv.enable = true;
+     awsenv.manage-profiles = false;
+     awsenv.package = pkgs.awscli2;
 
    }
 
@@ -90,15 +92,22 @@ changes.
    AWS_DEFAULT_OUTPUT
    AWS_DEFAULT_REGION
    AWS_SECRET_ACCESS_KEY
+   AWS_SESSION_EXPIRES
+   AWS_SESSION_TOKEN
    DEVENV_AWSENV
 
-When you use ``devenv-awsenv``, any matching envvars inherited from your parent
-shell will be clobbered.
+It will also set as environment variables any additional keys that you add to
+the JSON structure when you edit it.  When you use ``devenv-awsenv``, any
+matching envvars inherited from your parent shell will be clobbered.
 
-It will also manage ``AWS_PROFILE`` and create accounts with settings and
-credentials in ``~/.aws`` related to each environment used if configured to do
-so (some tools don't support using e.g. ``AWS_SECRET_ACCESS_KEY`` and friends
-as environment variables direcly and can only cope with ``AWS_PROFILE``).
+Don't add ``AWS_SESSION_*`` envvars or ``DEVENV_AWSENV`` to your environment
+config when you edit, these will be clobbered too.
+
+It will also manage the ``AWS_PROFILE`` envvar and create accounts with
+settings and credentials in ``~/.aws`` related to each environment used if
+configured to do so via ``awsenv.manage-profiles`` in ``devenv.nix`` (some
+tools don't support using e.g. ``AWS_SECRET_ACCESS_KEY`` and friends as
+environment variables direcly and can only cope with ``AWS_PROFILE``).
 
 The default environment is named ``dev``.  You can create a new environment
 named ``another`` via:

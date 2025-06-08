@@ -11,7 +11,12 @@
       type = lib.types.package;
       default = pkgs.awscli2;
       defaultText = lib.literalExpression "pkgs.awscli2";
-      description = "The awscli2 pacakge that awsenv should use";
+      description = "The awscli2 pacakge that awsenv should use to do auth";
+    };
+    manage-profiles = lib.mkOption {
+      type = lib.types.bool;
+      description = "Manage the AWS_PROFILE envvar and add profiles to ~/.aws";
+      default = false;
     };
   };
   config =
@@ -52,6 +57,8 @@
         scripts.awsenv-callerident.exec = ''
           exec awsenv-aws sts get-caller-identity
         '';
+        env = if cfg.manage-profiles then
+          {DEVENV_AWSENV_MANAGE_PROFILES="1";} else {};
 
         enterShell = lib.mkAfter ''
           awsenv auth && \

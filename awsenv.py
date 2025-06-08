@@ -338,8 +338,9 @@ class Config:
     def export(self):
         envvars = {
             "DEVENV_AWSENV": self.current_env,
-            "AWS_PROFILE":self.create_aws_profile(),
         }
+        if os.environ.get("DEVENV_AWSENV_MANAGE_PROFILES"):
+            envvars["AWS_PROFILE"] = self.create_aws_profile()
         envvars.update(self.envdata)
         envvars.update(self.derived)
 
