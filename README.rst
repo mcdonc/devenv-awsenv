@@ -164,8 +164,7 @@ You can either run this command::
 
   awsenv auth && eval "$(awsenv export)"
 
-Or exit the devenv shell and start it again/
-
+Or exit the devenv shell and start it again.
 
 Obtaining Your MFA Device name
 ------------------------------
