@@ -150,7 +150,7 @@ Obtaining Your OTP MFA Authenticator Secret (Optional)
 
 Optionally knowing your OTP authenticator secret for an AWS account allows you
 to do automatic MFA authentication when using ``devenv shell`` without needing
-to type an OTP codes.  ``awsenv edit`` will ask you for the OTP authenticator
+to type OTP codes.  ``awsenv edit`` will ask you for the OTP authenticator
 secret as ``DEVENV_AWSENV_MFA_OTP_AUTHSECRET`` in the default JSON structure.
 
 The OTP authenticator secret is the secret you use for a given AWS account that
