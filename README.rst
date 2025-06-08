@@ -30,7 +30,7 @@ to rerun MFA authentication for every shell you start.
 
 It also optionally manages AWS profiles in ``~/.aws`` related to each environment.
 
-There is a YouTube video at ... showing its usage.
+There is a YouTube video at https://youtu.be/LObkm7Ay08o showing its usage.
 
 Setting It Up
 -------------
