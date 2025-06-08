@@ -57,8 +57,14 @@
         scripts.awsenv-callerident.exec = ''
           exec awsenv-aws sts get-caller-identity
         '';
-        env = if cfg.manage-profiles then
-          {DEVENV_AWSENV_MANAGE_PROFILES="1";} else {};
+        env = let
+          manage_profiles = if cfg.manage-profiles then {
+            DEVENV_AWSENV_MANAGE_PROFILES="1";
+          } else {};
+        in
+          {
+            DEVENV_AWSENV_TEMPLATE = ./template.json;
+          } // manage_profiles;
 
         enterShell = lib.mkAfter ''
           awsenv auth && \

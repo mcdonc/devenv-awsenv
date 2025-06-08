@@ -71,8 +71,8 @@ class Config:
         return missing
 
     def get_template(self):
-        dir = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(dir, "template.json")) as f:
+        path = os.environ["DEVENV_AWSENV_TEMPLATE"]
+        with open(path) as f:
             return f.read()
 
     def edit(self, env):
