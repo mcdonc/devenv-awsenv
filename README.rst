@@ -94,7 +94,7 @@ credentials in ``~/.aws`` related to each environment used if configured to do
 so.
 
 The default environment is named ``dev``.  You can create a new environment
-mnamed ``another`` via:
+named ``another`` via:
 
 .. code-block::
 
@@ -174,9 +174,8 @@ account from Google Authenticator, it is the only code that the development
 environment is concerned with.
 
 Once you've got the codes imported into Bitwarden Authenticator, you can see
-your OTP Authenticator Secret for a given AWS account via its `JSON export
-
-<https://bitwarden.com/help/authenticator-import-export/>`_ feature.  It will
+your OTP Authenticator Secret for a given AWS account via its
+`JSON export <https://bitwarden.com/help/authenticator-import-export/>`_ feature.  It will
 be the "secret" part of the "totp" shown within the "login" dictionary" of the
 resulting JSON.
 
