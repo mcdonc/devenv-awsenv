@@ -2,16 +2,16 @@
  ``devenv-awsenv``: A tool to help with multiple AWS identies within devenv
 ============================================================================
 
+Overview
+--------
+
 ``devenv-awsenv`` is a devenv plugin that lets you create an arbitrary number
 of AWS "environments", each of which can have a different set of AWS
 credentials, a different AWS account id, a different region, etc.
 
-Overview
---------
-
-``devenv-awsenv`` is useful if you use different identities to authenticate to
-your development AWS setup vs. your production AWS setup. It is also useful if
-you are a consultant with multiple customers, and you need to switch between
+It is useful if you use different identities to authenticate to your
+development AWS setup vs. your production AWS setup. It is also useful if you
+are a consultant with multiple customers, and you need to switch between
 collections of customer AWS resources easily.
 
 It keeps all of its settings in the system keychain of whatever computer you
@@ -92,6 +92,9 @@ changes.
    AWS_SECRET_ACCESS_KEY
    DEVENV_AWSENV
 
+When you use ``devenv-awsenv``, any matching envvars inherited from your parent
+shell will be clobbered.
+
 It will also manage ``AWS_PROFILE`` and create accounts with settings and
 credentials in ``~/.aws`` related to each environment used if configured to do
 so (some tools don't support using e.g. ``AWS_SECRET_ACCESS_KEY`` and friends
@@ -117,6 +120,9 @@ To make an environment other than "dev" your default environment, run e.g.:
 .. code-block::
 
    awsenv switch another
+
+Note that awsenv environments are not local to a specific devenv environmnent or directory or anything,
+they are shared by all devenv environments that you use on the system.
 
 ``awsenv`` also has some other features explained in its help:
 
