@@ -59,13 +59,16 @@ example:
    }
 
 Once it is enabled, each time ``devenv shell`` starts, it will attempt to add
-environment variables to the shell environment related to AWS.
+environment variables to the shell environment related to AWS.  Tools like
+aws-cli will use these environment values instead of attempting to use a
+profile from ``~/.aws``.
 
-It will also attempt to authenticate with AWS at shell startup time.
+It will also attempt to authenticate with AWS using the default environmment
+settings at shell startup time.
 
-The first time you start it, it will inject not-very-useful values into the
-shell's environment.  It won't be usable.  While in the devenv shell, you can
-configure it for your use:
+The first time you start it, it will inject empty values into the shell's
+environment.  It won't be useful until you configure it.  While in the devenv
+shell, you can configure it for your use:
 
 .. code-block::
 
@@ -91,7 +94,8 @@ changes.
 
 It will also manage ``AWS_PROFILE`` and create accounts with settings and
 credentials in ``~/.aws`` related to each environment used if configured to do
-so.
+so (some tools don't support using e.g. ``AWS_SECRET_ACCESS_KEY`` and friends
+as environment variables direcly and can only cope with ``AWS_PROFILE``).
 
 The default environment is named ``dev``.  You can create a new environment
 named ``another`` via:
