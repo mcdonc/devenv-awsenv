@@ -9,9 +9,9 @@ Overview
 of AWS "environments", each of which can have a different set of AWS
 credentials, a different AWS account id, a different region, etc.
 
-It is useful if you use different identities to authenticate to your
-development AWS setup vs. your production AWS setup. It is also useful if you
-are a consultant with multiple customers, and you need to switch between
+It is useful if you use different identities to authenticate to, for example,
+your development AWS setup vs. your production AWS setup. It is also useful if
+you are a consultant with multiple customers, and you need to switch between
 collections of customer AWS resources easily.
 
 It keeps all of its settings in the system keychain of whatever computer you
@@ -30,6 +30,8 @@ to rerun MFA authentication for every shell you start.
 
 It also optionally manages AWS profiles in ``~/.aws`` related to each environment.
 
+There is a YouTube video at ... showing its usage.
+
 Setting It Up
 -------------
 
@@ -47,7 +49,6 @@ To enable ``devenv-awsenv`` within a devenv project, you must add its URL to
 Then you have to include its plugin and enable it within ``devenv.nix``.  For
 example:
 
-
 .. code-block:: nix
 
    { pkgs, lib, config, inputs, devenv-awsenv, ... }:
@@ -62,9 +63,9 @@ example:
    }
 
 Once it is enabled, each time ``devenv shell`` starts, it will attempt to add
-environment variables to the shell environment related to AWS.  Tools like
-aws-cli will use these environment values instead of attempting to use a
-profile from ``~/.aws`` unless ``awsenv.manage-profiles`` is ``true``.
+environment variables to the shell environment related to AWS.  Tools like aws'
+CLI are willing to use these environment values instead of attempting to use a
+profile from ``~/.aws`` (unless you have a global ``AWS_PROFILE`` envvar set).
 
 It will also attempt to authenticate with AWS using the default environmment
 settings at shell startup time.
@@ -166,7 +167,7 @@ You can either run this command::
 
 Or exit the devenv shell and start it again.
 
-Obtaining Your MFA Device name
+Obtaining Your MFA Device Name
 ------------------------------
 
 It's somewhere in the authentication settings of the user that you're using to
