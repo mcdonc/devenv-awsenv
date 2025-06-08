@@ -127,17 +127,25 @@ class Config:
                         new_deserialized,
                     )
                     self.save_derived(env, derived)
-                    self.show_activate_changes_tip()
+                    if env == self.current_env:
+                        newenv = None
+                    else:
+                        newenv = env
+                    self.show_activate_changes_tip(newenv)
         finally:
             os.unlink(temp_filename)
 
-    def show_activate_changes_tip(self):
+    def show_activate_changes_tip(self, newenv=None):
+        if newenv:
+            newenv = f"  awsenv switch {newenv}\n"
+        else:
+            newenv=""
         sys.stderr.write(
-            'To activate your changes, run:\n'
-            '\n'
+            "To activate your changes, run:\n"
+            f"\n{newenv}"
             '  awsenv auth && eval "$(awsenv export)"\n'
-            '\n'
-            'Or exit and reenter the devenv shell\n'
+            "\n"
+            "Or exit and reenter the devenv shell\n"
         )
         sys.stderr.flush()
 

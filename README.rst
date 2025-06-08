@@ -170,7 +170,7 @@ Or exit the devenv shell and start it again.
 Obtaining Your MFA Device Name
 ------------------------------
 
-It's somewhere in the authentication settings of the user that you're using to
+It's in the "Security Credentials" settings of the user that you're using to
 access a given AWS account.  You may have more than one, and they will differ
 between accounts.  This should be placed in ``DEVENV_ASWENV_MFA_DEVICE`` as
 you're editing the configuratiom if you use MFA.
