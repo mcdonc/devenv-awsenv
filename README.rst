@@ -158,6 +158,13 @@ they are shared by all devenv environments that you use on the system.
    options:
      -h, --help            show this help message and exit
 
+What Gets Installed
+-------------------
+
+``devenv-awsenv`` does not install any AWS CLI or related tools for your use.
+The only command it exposes is ``awsenv``.  You can use whatever AWS tools you
+like, but you'll need to install them yourself in ``devenv.nix``.
+
 If Your MFA Token Expires
 -------------------------
 
