@@ -137,13 +137,13 @@ class Config:
 
     def show_activate_changes_tip(self, newenv=None):
         if newenv:
-            newenv = f"  awsenv switch {newenv}\n"
+            newenv = f"  awsenv switch {newenv} && "
         else:
-            newenv=""
+            newenv="  "
         sys.stderr.write(
             "To activate your changes, run:\n"
             f"\n{newenv}"
-            '  awsenv auth && eval "$(awsenv export)"\n'
+            'awsenv auth && eval "$(awsenv export)"\n'
             "\n"
             "Or exit and reenter the devenv shell\n"
         )
