@@ -1,3 +1,5 @@
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/nixpkgs-unstable
+  devenv-awsenv:
+    url: path:/home/chrism/projects/devenv-awsenv

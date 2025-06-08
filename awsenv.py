@@ -12,16 +12,6 @@ import tempfile
 
 OURNAME = "devenv-awsenv"
 
-KEYS = set([
-    "AWS_ACCESS_KEY_ID",
-    "AWS_ACCOUNT_ID",
-    "AWS_DEFAULT_OUTPUT",
-    "AWS_DEFAULT_REGION",
-    "AWS_SECRET_ACCESS_KEY",
-    "DEVENV_AWSENV_MFA_DEVICE_NAME",
-    "DEVENV_AWSENV_MFA_OTP_AUTHSECRET",
-])
-
 CHANGES_DERIVED = set([
     "AWS_ACCESS_KEY_ID",
     "AWS_ACCOUNT_ID",
@@ -39,16 +29,17 @@ REQUIRED = set([
 ])
 
 class Config:
-    def __init__(self, current_env):
+    def __init__(self):
         self.current_env = self.get_default_env()
         envdata = self.load(self.current_env)
         if envdata is None:
             template = self.get_template()
-            self.save(template)
+            self.save(self.current_env, template)
+            envdata = self.load(self.current_env)
         derived = self.load_derived(self.current_env)
         if derived is None:
-            self.save_derived('{}')
-            derived = {}
+            self.save_derived(self.current_env, '{}')
+            derived = self.load_derived(self.current_env)
         self.envdata = envdata
         self.derived = derived
 
@@ -119,7 +110,8 @@ class Config:
                 except Exception:
                     self.save(env, new)
                     import traceback; traceback.print_exc()
-                    print("Could not deserialize new data, reedit")
+                    sys.stderr.write(
+                        "Could not deserialize new data, re-edit")
                     return
                 else:
                     missing = self.get_missing(new_deserialized)
@@ -135,8 +127,19 @@ class Config:
                         new_deserialized,
                     )
                     self.save_derived(env, derived)
+                    self.show_activate_changes_tip()
         finally:
             os.unlink(temp_filename)
+
+    def show_activate_changes_tip(self):
+        sys.stderr.write(
+            'To activate your changes, run:\n'
+            '\n'
+            '  awsenv auth && eval "$(awsenv export)"\n'
+            '\n'
+            'Or exit and reenter the devenv shell\n'
+        )
+        sys.stderr.flush()
 
     def save(self, env, serialized):
         self.set_password(env, serialized)
@@ -148,7 +151,7 @@ class Config:
         serialized = self.get_password(env, default)
         try:
             return json.loads(serialized)
-        except json.decoder.JSONDecodeError:
+        except (json.decoder.JSONDecodeError, TypeError):
             return default
 
     def load_derived(self, env, default=None):
@@ -181,11 +184,12 @@ class Config:
         meta["envs"].insert(0, env)
         meta = json.dumps(meta, indent=2)
         self.set_password("__meta__", meta)
+        self.show_activate_changes_tip()
 
     def get_aws_session_expires(self):
         return self.derived.get("AWS_SESSION_EXPIRES")
 
-    def get_mfa_delta(self):
+    def mfaleft(self):
         exprstr = self.get_aws_session_expires()
         if not exprstr:
             return "-"
@@ -196,7 +200,7 @@ class Config:
         return delta
 
     def mfa_expired(self):
-        delta = self.get_mfa_delta()
+        delta = self.mfaleft()
         return delta.startswith("-")
 
     def mfacode(self):
@@ -208,10 +212,13 @@ class Config:
             totp = pyotp.TOTP(secret)
             code = totp.now()
         else:
-            code = input("Input current MFA code: ")
-        return code.strip()
+            code = input(f"Input AWS MFA code for {self.current_env}: ")
+            code = code.strip()
+            if not code:
+                code = self.mfacode()
+        return code
 
-    def mfa(self, code, force=False):
+    def auth(self, force=False):
         expired = self.mfa_expired()
 
         if not (force or expired):
@@ -220,37 +227,46 @@ class Config:
         envdata = self.envdata
         device = envdata.get("DEVENV_AWSENV_MFA_DEVICE")
         if not device:
-            raise ValueError("No DEVENV_AWSENV_MFA_DEVICE defined in config")
+            return
+
         account_id = envdata["AWS_ACCOUNT_ID"]
         awsenv_aws = shutil.which("awsenv-aws")
-        cmd = [
-            awsenv_aws,
-            "sts",
-            "get-session-token",
-            "--serial-number",
-            f"arn:aws:iam::{account_id}:mfa/{device}",
-            "--token-code",
-            code
-        ]
-        result = self.run(cmd, env=envdata)
-        if result.returncode == 0:
-            response = json.loads(result.stdout)
-            creds = response["Credentials"]
-            derived = {
-                "AWS_SESSION_TOKEN": creds["SessionToken"],
-                "AWS_ACCESS_KEY_ID": creds["AccessKeyId"],
-                "AWS_SECRET_ACCESS_KEY": creds["SecretAccessKey"],
-                "AWS_SESSION_EXPIRES": creds["Expiration"],
-            }
-            self.derived = derived
-            self.save_derived(self.current_env, self.serialize(derived))
-            sys.stderr.write("mfa auth performed")
-            sys.stderr.flush()
-            return derived
-        else:
-            print("mfa auth failed")
+
+        secret = envdata.get("DEVENV_AWSENV_MFA_OTP_AUTHSECRET")
+
+        returncode = None
+
+        while returncode != 0:
+            code = self.mfacode()
+            cmd = [
+                awsenv_aws,
+                "sts",
+                "get-session-token",
+                "--serial-number",
+                f"arn:aws:iam::{account_id}:mfa/{device}",
+                "--token-code",
+                code
+            ]
+            result = self.run(cmd, env=envdata)
             sys.stderr.write(result.stderr)
             sys.stderr.flush()
+            returncode = result.returncode
+            if returncode != 0 and secret:
+                sys.exit(1)
+
+        response = json.loads(result.stdout)
+        creds = response["Credentials"]
+        derived = {
+            "AWS_SESSION_TOKEN": creds["SessionToken"],
+            "AWS_ACCESS_KEY_ID": creds["AccessKeyId"],
+            "AWS_SECRET_ACCESS_KEY": creds["SecretAccessKey"],
+            "AWS_SESSION_EXPIRES": creds["Expiration"],
+        }
+        self.derived = derived
+        self.save_derived(self.current_env, self.serialize(derived))
+        sys.stderr.write(f"AWS MFA auth performed for {self.current_env}\n")
+        sys.stderr.flush()
+        return derived
 
     def list(self):
         meta = self.load_meta()
@@ -298,7 +314,7 @@ class Config:
         self.set_password("__meta__", self.serialize({"envs":list(envs)} ))
 
     def create_aws_profile(self):
-        p = self.envdata.get("AWS_PROFILE")
+        p = f"awsenv-{self.current_env}"
         for varname, awsname in (
             ("AWS_ACCESS_KEY_ID", "aws_access_key_id"),
             ("AWS_SECRET_ACCESS_KEY", "aws_secret_access_key"),
@@ -317,21 +333,18 @@ class Config:
                     p
                 ]
                 self.run(cmd)
+        return p
 
     def export(self):
-        envvars = {}
+        envvars = {
+            "DEVENV_AWSENV": self.current_env,
+            "AWS_PROFILE":self.create_aws_profile(),
+        }
         envvars.update(self.envdata)
-        if "DEVENV_AWS_ENV_MFA_DEVICE" in envvars:
-            derived = None
-            while derived is None:
-                code = self.mfacode()
-                derived = self.mfa(code)
-        else:
-            derived = self.derived
-        envvars.update(derived)
+        envvars.update(self.derived)
 
         for k, v in sorted(envvars.items()):
-            if not k =="DEVENV_AWSENV_MFA_OTP_AUTHSECRET":
+            if not k.startswith("DEVENV_AWSENV_"):
                 quoted = shlex.quote(v)
                 print(f"{k}={quoted}")
                 print(f"export {k}")
@@ -358,8 +371,14 @@ if __name__ == "__main__":
         "name", help="The environment name to edit", default=None, nargs="?"
     )
 
-    mfa_parser = subparsers.add_parser(
-        "mfa", help="Add mfa result to derived"
+    auth_parser = subparsers.add_parser(
+        "auth", help="Supply authentication values (e.g. for MFA) if neccesary"
+    )
+    auth_parser.add_argument(
+        "--force",
+        help="Force MFA even if credentials are not expired",
+        action="store_true",
+        default=False,
     )
 
     switch_parser = subparsers.add_parser(
@@ -381,7 +400,7 @@ if __name__ == "__main__":
     )
 
     copy_parser = subparsers.add_parser(
-        "copy", help="Delete an environment"
+        "copy", help="Copy an environment"
     )
     copy_parser.add_argument(
         "source", help="The source environment name"
@@ -393,11 +412,14 @@ if __name__ == "__main__":
     export_parser = subparsers.add_parser(
         "export", help="Output shell commands to export the required envvars"
     )
+    mfaleft_parser = subparsers.add_parser(
+        "mfaleft",
+        help="Show how much time is left in the current MFA session (hh:mm)"
+    )
 
     args = main_parser.parse_args()
 
-    env = os.environ.get("DEVENV_AWSENV", "dev")
-    config = Config(env)
+    config = Config()
 
     if not args.command:
         print(config.current_env)
@@ -405,9 +427,12 @@ if __name__ == "__main__":
     if args.command == "edit":
         config.edit(args.name)
 
-    if args.command == "mfa":
-        config.mfa()
+    if args.command == "auth":
+        config.auth(args.force)
 
+    if args.command == "mfaleft":
+        print(config.mfaleft())
+        
     if args.command == "switch":
         config.switch(args.name)
 

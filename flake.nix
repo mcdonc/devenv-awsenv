@@ -5,7 +5,6 @@
 
   outputs = { self }:
     {
-      moduledir = builtins.dirOf __curPos.file;
-      plugin = (import ./default.nix { inherit self;} );
+      plugin = (import ./default.nix);
     };
 }

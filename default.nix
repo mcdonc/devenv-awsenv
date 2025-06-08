@@ -1,4 +1,4 @@
-{ pkgs, lib, config, inputs, self, ... }:
+{ pkgs, lib, config, ... }:
 
 {
   options.awsenv = {
@@ -46,12 +46,18 @@
       keyringpyexe = "${keyring_python}/bin/python";
     in
       lib.mkIf cfg.enable {
-        scripts.awsenv.exec = ''exec ${keyringpyexe} "$DEVENV_ROOT/../awsenv.py" $@'';
+        scripts.awsenv.exec = ''exec ${keyringpyexe} "${./awsenv.py}" $@'';
         scripts.keyringpyexe.exec = keyringpyexe;
         scripts.awsenv-aws.exec = ''exec ${cfg.package}/bin/aws $@'';
+        scripts.awsenv-callerident.exec = ''
+          exec awsenv-aws sts get-caller-identity
+        '';
+
         enterShell = lib.mkAfter ''
-          echo ${boolToStr cfg.enable}
-          echo $DEVENV_ROOT
-      '';
+          awsenv auth && \
+          eval "$(awsenv export)" && \
+          echo "AWS vars set for $DEVENV_AWSENV" || \
+          echo "Could not export AWS vars"
+        '';
       };
 }

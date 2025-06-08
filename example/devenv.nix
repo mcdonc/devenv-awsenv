@@ -1,11 +1,12 @@
-{ pkgs, lib, config, inputs, ... }:
+{ pkgs, lib, config, inputs, devenv-awsenv, ... }:
 
 {
-  imports = [ ../default.nix ];
+  imports = [ devenv-awsenv.plugin ];
 
   awsenv.enable = true;
 
-  enterShell = ''
-    eval "$(awsenv export)"
-  '';
+  env = {
+    EDITOR = "emacs -nw";
+  };
+
 }
