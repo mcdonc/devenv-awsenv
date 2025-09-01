@@ -5,7 +5,7 @@
     enable = lib.mkOption {
       type = lib.types.bool;
       description = "Use Devenv AWS environments";
-      default = true;
+      default = false;
     };
     package = lib.mkOption {
       type = lib.types.package;
