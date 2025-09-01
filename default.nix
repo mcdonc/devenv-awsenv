@@ -22,8 +22,6 @@
   config =
     let
       cfg = config.awsenv;
-      strToBool = str: str != "";
-      boolToStr = bool: if bool then "true" else "false";
       # Separate python used by the devenv for keyring-related tasks.
       # Rationale: on Mac, when any of this stuff changes, its Nix store path
       # will change, and the Mac will ask for confirmation to allow the "new"
@@ -51,26 +49,26 @@
       keyringpyexe = "${keyring_python}/bin/python";
     in
       lib.mkIf cfg.enable {
-        scripts.awsenv.exec = ''exec ${keyringpyexe} "${./awsenv.py}" $@'';
-        scripts.keyringpyexe.exec = keyringpyexe;
-        scripts.awsenv-aws.exec = ''exec ${cfg.package}/bin/aws $@'';
-        scripts.awsenv-callerident.exec = ''
+        scripts.awsenv.exec = lib.mkDefault ''exec ${keyringpyexe} "${./awsenv.py}" $@'';
+        scripts.keyringpyexe.exec = lib.mkDefault keyringpyexe;
+        scripts.awsenv-aws.exec = lib.mkDefault ''exec ${cfg.package}/bin/aws $@'';
+        scripts.awsenv-callerident.exec = lib.mkDefault ''
           exec awsenv-aws sts get-caller-identity
         '';
         env = let
           manage_profiles = if cfg.manage-profiles then {
-            DEVENV_AWSENV_MANAGE_PROFILES="1";
+            DEVENV_AWSENV_MANAGE_PROFILES = lib.mkDefault "1";
           } else {};
         in
           {
-            DEVENV_AWSENV_TEMPLATE = ./template.json;
+            DEVENV_AWSENV_TEMPLATE = lib.mkDefault ./template.json;
           } // manage_profiles;
 
-        enterShell = lib.mkAfter ''
+        enterShell = lib.mkBefore ''
           awsenv auth && \
           eval "$(awsenv export)" && \
-          echo "AWS vars set for $DEVENV_AWSENV" || \
-          echo "Could not export AWS vars"
+          echo "⏹️  AWS vars set for $DEVENV_AWSENV" || \
+          echo "⏹️  Did not export AWS vars"
         '';
       };
 }
