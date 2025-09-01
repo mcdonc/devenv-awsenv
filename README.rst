@@ -232,8 +232,8 @@ v1.1, Sept 1, 2025
 
 Default ``awsenv.enable`` to false.
 
-Next release
-------------
+v1.2, Sept 1, 2025
+------------------
 
 - Use mkBefore instead of mkAfter for enterShell (devenv-zsh compat).
 
