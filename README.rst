@@ -181,7 +181,7 @@ It's in the "Security Credentials" settings of the user that you're using to
 access a given AWS account.  You may have more than one, and they will differ
 between accounts.  This should be placed in ``DEVENV_ASWENV_MFA_DEVICE`` as
 you're editing the configuratiom if you use MFA.
-   
+
 Obtaining Your OTP MFA Authenticator Secret (Optional)
 --------------------------------------------------------
 
@@ -231,3 +231,16 @@ application that can either scan a Google Authenticator QR code via a camera or
 can import it via a screenshotted image of the QR code.  The output of the
 application will contain the secret for each exported site, including the one
 for the AWS account you care about.
+
+Changelog
+=========
+
+v1.0,June 8, 2025
+-----------------
+
+Initial release
+
+v1.1, Sept 1, 2025
+------------------
+
+Default ``awsenv.enable`` to false.
