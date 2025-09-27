@@ -1,7 +1,6 @@
 import argparse
 from datetime import datetime, timezone
 import json
-import keyring
 import os
 import pyotp
 import shlex
@@ -29,8 +28,11 @@ REQUIRED = set([
 ])
 
 class Config:
-    def __init__(self):
-        self.current_env = self.get_default_env()
+    def __init__(self, profile, keyring):
+        if profile is None:
+            profile = "dev"
+        self.current_env = profile
+        self.keyring = keyring
         envdata = self.load(self.current_env)
         if envdata is None:
             template = self.get_template()
@@ -45,12 +47,12 @@ class Config:
 
     def get_password(self, key, default=None):
         try:
-            return keyring.get_password(OURNAME, key)
-        except keyring.errors.InitError:
+            return self.keyring.get_password(OURNAME, key)
+        except self.keyring.errors.InitError:
             return default
 
     def set_password(self, env, serialized):
-        keyring.set_password(OURNAME, env, serialized)
+        self.keyring.set_password(OURNAME, env, serialized)
 
     def get_changed(self, old, new):
         changed = set({ k: v for k, v in new.items() if old.get(k) != v })
@@ -300,8 +302,8 @@ class Config:
         envs.remove(name)
         meta = json.dumps(meta)
         self.set_password("__meta__", meta)
-        keyring.delete_password(OURNAME, name)
-        keyring.delete_password(OURNAME, "{name}-derived")
+        self.keyring.delete_password(OURNAME, name)
+        self.keyring.delete_password(OURNAME, "{name}-derived")
 
     def copy(self, src, target):
         meta = self.load_meta()
@@ -428,7 +430,13 @@ if __name__ == "__main__":
 
     args = main_parser.parse_args()
 
-    config = Config()
+    try:
+        import keyring
+    except ImportError:
+        keyring = None # for tests
+
+    profile = os.environ.get("DEVENV_AWSENV_PROFILE")
+    config = Config(profile, keyring)
 
     if not args.command:
         print(config.current_env)

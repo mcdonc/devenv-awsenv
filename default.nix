@@ -7,6 +7,11 @@
       description = "Use Devenv AWS environments";
       default = false;
     };
+    profile = lib.mkOption {
+      type = lib.types.str;
+      description = "Use this AWS profile at devenv startup";
+      default = "dev";
+    };
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.awscli2;
@@ -36,21 +41,23 @@
       # whatever reason, the cryptography package has a python-3.11 DLL instead
       # of a python-3.12 one in Nix.
       #
-      keyring_python = (
+      awsenv_python = (
         pkgs.python311.withPackages (python-pkgs: [
           python-pkgs.keyring
+          python-pkgs.keyrings-alt
           python-pkgs.pyotp
+          python-pkgs.coverage
         ] ++ lib.optionals pkgs.stdenv.isLinux [
           python-pkgs.dbus-python
           python-pkgs.secretstorage
         ]
         )
       );
-      keyringpyexe = "${keyring_python}/bin/python";
+      awsenvpyexe = "${awsenv_python}/bin/python";
     in
       lib.mkIf cfg.enable {
-        scripts.awsenv.exec = lib.mkDefault ''exec ${keyringpyexe} "${./awsenv.py}" $@'';
-        scripts.keyringpyexe.exec = lib.mkDefault keyringpyexe;
+        scripts.awsenv.exec = lib.mkDefault ''exec ${awsenvpyexe} "${./awsenv.py}" $@'';
+        scripts.awsenvpyexe.exec = lib.mkDefault ''exec ${awsenvpyexe} $@'';
         scripts.awsenv-aws.exec = lib.mkDefault ''exec ${cfg.package}/bin/aws $@'';
         scripts.awsenv-callerident.exec = lib.mkDefault ''
           exec awsenv-aws sts get-caller-identity
@@ -62,6 +69,7 @@
         in
           {
             DEVENV_AWSENV_TEMPLATE = lib.mkDefault ./template.json;
+            DEVENV_AWSENV_PROFILE = cfg.profile;
           } // manage_profiles;
 
         enterShell = lib.mkBefore ''
