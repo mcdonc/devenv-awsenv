@@ -405,7 +405,7 @@ if __name__ == "__main__":
     except ImportError:
         keyring = None # for tests
 
-    env = os.environ.get("DEVENV_AWSENV_ENV")
+    env = os.environ.get("DEVENV_AWSENV")
     config = Config(env, keyring)
 
     if not args.command:

@@ -38,11 +38,11 @@ class TestConfig(unittest.TestCase):
         self.template_path = os.path.join(here, "template.json")
         os.environ["DEVENV_SECRETS_TEMPLATE"] = self.template_path
 
-    def _makeOne(self, profile, keyring=None):
+    def _makeOne(self, env, keyring=None):
         from awsenv import Config
         if keyring is None:
             keyring = FakeKeyring()
-        config = Config(profile, keyring)
+        config = Config(env, keyring)
         return config
 
     def test_ctor_noprofile(self):

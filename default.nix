@@ -45,6 +45,7 @@
         pkgs.python311.withPackages (python-pkgs: [
           python-pkgs.keyring
           python-pkgs.keyrings-alt
+          python-pkgs.pytest
           python-pkgs.pyotp
           python-pkgs.coverage
         ] ++ lib.optionals pkgs.stdenv.isLinux [
@@ -69,7 +70,7 @@
         in
           {
             DEVENV_AWSENV_TEMPLATE = lib.mkDefault ./template.json;
-            DEVENV_AWSENV_ENV = cfg.env;
+            DEVENV_AWSENV = cfg.env;
           } // manage_profiles;
 
         enterShell = lib.mkBefore ''
