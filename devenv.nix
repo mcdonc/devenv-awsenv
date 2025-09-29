@@ -4,7 +4,7 @@
   imports = [ ./default.nix ];
 
   awsenv.enable = true;
-  awsenv.profile = "testenv";
+  awsenv.env = "testenv";
 
   enterShell = ''
     [ "$(awsenv)" == "testenv" ] && echo "enterShell works" || exit 2
