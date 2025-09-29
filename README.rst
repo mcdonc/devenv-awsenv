@@ -58,6 +58,7 @@ example:
      imports = [ devenv-awsenv.plugin ];
 
      awsenv.enable = true;
+     awsenv.env = "dev";
      awsenv.manage-profiles = false;
      awsenv.package = pkgs.awscli2;
 
@@ -143,29 +144,24 @@ You can then run:
 
 To make changes suitable for that new environment.
 
-To make an environment other than "dev" your default environment, run e.g.:
-
-.. code-block::
-
-   awsenv switch another
-
-Note that awsenv environments are not local to a specific devenv environmnent or directory or anything,
-they are shared by all devenv environments that you use on the system.
+To change the current environment, edit the ``awsenv.env`` setting in your
+``devenv.nix``.  Note that awsenv environments are not local to a specific
+devenv environmnent or directory or anything, they are shared by all devenv
+environments that you use on the system.
 
 ``awsenv`` also has some other features explained in its help:
 
 .. code-block::
 
-   usage: awsenv [-h] {edit,auth,switch,list,delete,copy,export,mfaleft} ...
+   usage: awsenv [-h] {edit,auth,list,delete,copy,export,mfaleft} ...
 
    awsenv
 
    positional arguments:
-     {edit,auth,switch,list,delete,copy,export,mfaleft}
+     {edit,auth,list,delete,copy,export,mfaleft}
                            No arguments means show current default awsenv
        edit                Edit an environment
        auth                Supply authentication values (e.g. for MFA) if neccesary
-       switch              Make an environment the default
        list                Show all available environments
        delete              Delete an environment
        copy                Copy an environment

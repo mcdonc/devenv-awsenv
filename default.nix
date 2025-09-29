@@ -7,9 +7,9 @@
       description = "Use Devenv AWS environments";
       default = false;
     };
-    profile = lib.mkOption {
+    env = lib.mkOption {
       type = lib.types.str;
-      description = "Use this AWS profile at devenv startup";
+      description = "Use this awsenv environment at devenv startup";
       default = "dev";
     };
     package = lib.mkOption {
@@ -69,14 +69,14 @@
         in
           {
             DEVENV_AWSENV_TEMPLATE = lib.mkDefault ./template.json;
-            DEVENV_AWSENV_PROFILE = cfg.profile;
+            DEVENV_AWSENV_ENV = cfg.env;
           } // manage_profiles;
 
         enterShell = lib.mkBefore ''
           awsenv auth && \
           eval "$(awsenv export)" && \
-          echo "⏹️  AWS vars set for $DEVENV_AWSENV" || \
-          echo "⏹️  Did not export AWS vars"
+          echo "⏹️  AWS envvars set for $DEVENV_AWSENV" || \
+          echo "✖️  Could not export AWS envvars"
         '';
       };
 }

@@ -28,10 +28,10 @@ REQUIRED = set([
 ])
 
 class Config:
-    def __init__(self, profile, keyring):
-        if profile is None:
-            profile = "dev"
-        self.current_env = profile
+    def __init__(self, env, keyring):
+        if env is None:
+            env = "dev"
+        self.current_env = env
         self.keyring = keyring
         envdata = self.load(self.current_env)
         if envdata is None:
@@ -130,23 +130,14 @@ class Config:
                     )
                     self.save_derived(env, derived)
                     if env == self.current_env:
-                        newenv = None
-                    else:
-                        newenv = env
-                    self.show_activate_changes_tip(newenv)
+                        self.show_activate_changes_tip()
         finally:
             os.unlink(temp_filename)
 
-    def show_activate_changes_tip(self, newenv=None):
-        if newenv:
-            newenv = f"  awsenv switch {newenv} && "
-        else:
-            newenv="  "
+    def show_activate_changes_tip(self):
         sys.stderr.write(
-            "To activate your changes, run:\n"
-            f"\n{newenv}"
-            'awsenv auth && eval "$(awsenv export)"\n'
-            "\n"
+            "To activate your changes, run:\n\n"
+            'awsenv auth && eval "$(awsenv export)"\n\n'
             "Or exit and reenter the devenv shell\n"
         )
         sys.stderr.flush()
@@ -181,20 +172,6 @@ class Config:
     def serialize(self, config):
         serialized = json.dumps(config, indent=4, sort_keys=True)
         return serialized
-
-    def get_default_env(self):
-        meta = json.loads(self.get_meta())
-        return meta["envs"][0]
-
-    def switch(self, env):
-        meta = json.loads(self.get_meta())
-        if not env in meta["envs"]:
-            raise ValueError(f"no such env named {env}")
-        meta["envs"].remove(env)
-        meta["envs"].insert(0, env)
-        meta = json.dumps(meta, indent=2)
-        self.set_password("__meta__", meta)
-        self.show_activate_changes_tip()
 
     def get_aws_session_expires(self):
         return self.derived.get("AWS_SESSION_EXPIRES")
@@ -281,7 +258,7 @@ class Config:
     def list(self):
         meta = self.load_meta()
         envs = meta["envs"]
-        current = envs[0]
+        current = self.current_env
         for env in sorted(envs):
             sys.stdout.write(env)
             if env == current:
@@ -292,7 +269,7 @@ class Config:
     def delete(self, name):
         meta = self.load_meta()
         envs = meta["envs"]
-        current = envs[0]
+        current = self.current_env
         if name == current:
             print("Cannot delete current env")
             sys.exit(1)
@@ -311,7 +288,7 @@ class Config:
         if not src in envs:
             print(f"No such env {src}")
             sys.exit(1)
-        current = envs[0]
+        current = self.current_env
         if target == current:
             print(f"Cannot copy on top of current env {target}")
             sys.exit(1)
@@ -392,13 +369,6 @@ if __name__ == "__main__":
         default=False,
     )
 
-    switch_parser = subparsers.add_parser(
-        "switch", help="Make an environment the default"
-    )
-    switch_parser.add_argument(
-        "name", help="The environment name to switch to"
-    )
-
     list_parser = subparsers.add_parser(
         "list", help="Show all available environments"
     )
@@ -435,8 +405,8 @@ if __name__ == "__main__":
     except ImportError:
         keyring = None # for tests
 
-    profile = os.environ.get("DEVENV_AWSENV_PROFILE")
-    config = Config(profile, keyring)
+    env = os.environ.get("DEVENV_AWSENV_ENV")
+    config = Config(env, keyring)
 
     if not args.command:
         print(config.current_env)
@@ -450,9 +420,6 @@ if __name__ == "__main__":
     if args.command == "mfaleft":
         print(config.mfaleft())
         
-    if args.command == "switch":
-        config.switch(args.name)
-
     if args.command == "list":
         config.list()
 
