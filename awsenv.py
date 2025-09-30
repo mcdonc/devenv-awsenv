@@ -16,7 +16,7 @@ CHANGES_DERIVED = set([
     "AWS_ACCESS_KEY_ID",
     "AWS_ACCOUNT_ID",
     "AWS_SECRET_ACCESS_KEY",
-    "DEVENV_AWSENV_MFA_DEVICE_NAME",
+    "DEVENV_AWSENV_MFA_DEVICE",
     "DEVENV_AWSENV_MFA_OTP_AUTHSECRET",
 ])
 
@@ -195,27 +195,28 @@ class Config:
             totp = pyotp.TOTP(secret)
             code = totp.now()
         else:
-            code = input(f"Input AWS MFA code for {self.current_env}: ")
+            code = self.inp(f"Input AWS MFA code for {self.current_env}: ")
             code = code.strip()
-            if not code:
+            if not code: # pragma: no cover
                 code = self.mfacode()
         return code
 
     def auth(self, force=False):
+        device = self.envdata.get("DEVENV_AWSENV_MFA_DEVICE")
+        if not device:
+            return 0
+
         expired = self.mfa_expired()
 
         if not (force or expired):
-            return self.derived
+            return 0
 
         envdata = self.envdata
-        device = envdata.get("DEVENV_AWSENV_MFA_DEVICE")
-        if not device:
-            return
 
         account_id = envdata["AWS_ACCOUNT_ID"]
-        awsenv_aws = shutil.which("awsenv-aws")
+        awsenv_aws = self.which("awsenv-aws")
 
-        secret = envdata.get("DEVENV_AWSENV_MFA_OTP_AUTHSECRET")
+        otp_authsecret = envdata.get("DEVENV_AWSENV_MFA_OTP_AUTHSECRET")
 
         returncode = None
 
@@ -231,10 +232,11 @@ class Config:
                 code
             ]
             result = self.run(cmd, env=envdata)
-            self.errout(result.stderr)
+            if result.stderr: # pragma: no cover
+                self.errout(result.stderr)
             returncode = result.returncode
-            if returncode != 0 and secret:
-                sys.exit(1)
+            if returncode != 0 and otp_authsecret: # pragma: no cover
+                return 1
 
         response = json.loads(result.stdout)
         creds = response["Credentials"]
@@ -246,8 +248,8 @@ class Config:
         }
         self.derived = derived
         self.save_derived(self.current_env, self.serialize(derived))
-        self.errout(f"AWS MFA auth performed for {self.current_env}\n")
-        return derived
+        self.errout(f"AWS MFA auth performed for {self.current_env}")
+        return 0
 
     def list(self):
         meta = self.load_meta()
@@ -319,7 +321,7 @@ class Config:
         envvars = {
             "DEVENV_AWSENV": self.current_env,
         }
-        if os.environ.get("DEVENV_AWSENV_MANAGE_PROFILES"):
+        if os.environ.get("DEVENV_AWSENV_MANAGE_PROFILES"): # pragma: no cover
             envvars["AWS_PROFILE"] = self.create_aws_profile()
         envvars.update(self.envdata)
         envvars.update(self.derived)
@@ -347,6 +349,12 @@ class Config:
     def errout(self, data): # pragma: no cover
         sys.stderr.write(data + "\n")
         sys.stderr.flush()
+
+    def inp(self, prompt): # pragma: no cover
+        return input(prompt)
+
+    def which(self, cmd): # pragma: no cover
+        return shutil.which(cmd)
 
 if __name__ == "__main__": # pragma: no cover
     main_parser = argparse.ArgumentParser(description="awsenv")

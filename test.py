@@ -244,9 +244,9 @@ class TestConfig(unittest.TestCase):
             "export AWS_ACCESS_KEY_ID",
             "AWS_ACCOUNT_ID=''",
             "export AWS_ACCOUNT_ID",
-            "AWS_DEFAULT_OUTPUT=''",
+            "AWS_DEFAULT_OUTPUT=json",
             "export AWS_DEFAULT_OUTPUT",
-            "AWS_DEFAULT_REGION=''",
+            "AWS_DEFAULT_REGION=us-east-1",
             "export AWS_DEFAULT_REGION",
             "AWS_SECRET_ACCESS_KEY=''",
             "export AWS_SECRET_ACCESS_KEY",
@@ -280,14 +280,14 @@ class TestConfig(unittest.TestCase):
             "AWS_ACCESS_KEY_ID":"1",
             "AWS_ACCOUNT_ID":"1",
             "AWS_SECRET_ACCESS_KEY":"1",
-            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_DEVICE":"1",
             "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
             }
         new = {
             "AWS_ACCESS_KEY_ID":"1",
             "AWS_ACCOUNT_ID":"1",
             "AWS_SECRET_ACCESS_KEY":"1",
-            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_DEVICE":"1",
             "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
             }
         result = config.derived_after_changes("profile", old, new)
@@ -300,14 +300,14 @@ class TestConfig(unittest.TestCase):
             "AWS_ACCESS_KEY_ID":"1",
             "AWS_ACCOUNT_ID":"1",
             "AWS_SECRET_ACCESS_KEY":"1",
-            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_DEVICE":"1",
             "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
             }
         new = {
             "AWS_ACCESS_KEY_ID":"2",
             "AWS_ACCOUNT_ID":"2",
             "AWS_SECRET_ACCESS_KEY":"2",
-            "DEVENV_AWSENV_MFA_DEVICE_NAME":"2",
+            "DEVENV_AWSENV_MFA_DEVICE":"2",
             "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"2",
             }
         result = config.derived_after_changes("profile", old, new)
@@ -317,10 +317,158 @@ class TestConfig(unittest.TestCase):
         config = self._makeOne("profile")
         self.assertEqual(config.mfaleft(), '-')
 
-    def test_mfaleft_no_aws_session_expires(self):
+    def test_mfaleft_with_aws_session_expires(self):
         config = self._makeOne("profile")
-        config.derived["AWS_SESSION_EXPIRES"] =
-        self.assertEqual(config.mfaleft(), '-')
+        config.derived["AWS_SESSION_EXPIRES"] = '2037-01-01T08:57:37+00:00'
+        self.assertTrue("days" in config.mfaleft())
+
+    def test_mfa_expired_no_aws_session_expires(self):
+        config = self._makeOne("profile")
+        self.assertEqual(config.mfa_expired(), True)
+
+    def test_mfa_expired_with_aws_session_expires(self):
+        config = self._makeOne("profile")
+        config.derived["AWS_SESSION_EXPIRES"] = '2037-01-01T08:57:37+00:00'
+        self.assertEqual(config.mfa_expired(), False)
+
+    def test_mfacode_nodevice(self):
+        config = self._makeOne("profile")
+        self.assertEqual(config.mfacode(), None)
+
+    def test_mfacode_withdevice_nosecret(self):
+        config = self._makeOne("profile")
+        config.envdata["DEVENV_AWSENV_MFA_DEVICE"] = "device"
+        config.inp = lambda x: "12345"
+        self.assertEqual(config.mfacode(), "12345")
+
+    def test_mfacode_withdevice_withsecret(self):
+        config = self._makeOne("profile")
+        config.envdata["DEVENV_AWSENV_MFA_DEVICE"] = "device"
+        config.envdata["DEVENV_AWSENV_MFA_OTP_AUTHSECRET"] = "E2OVN6XH7LXUR22ZQ64MAEM2NQ22JEKILF3QUV7W7S6JHYL5BZVAFZNDDLSRW3AZ"
+        self.assertEqual(len(config.mfacode()), 6)
+
+    def test_create_aws_profile(self):
+        config = self._makeOne("profile")
+        L = []
+        config.run = lambda cmd: L.append(cmd)
+        result = config.create_aws_profile()
+        self.assertEqual(result, "awsenv-profile")
+        expected = [['awsenv-aws',
+                     'configure',
+                     'set',
+                     'aws_access_key_id',
+                     '',
+                     '--profile',
+                     'awsenv-profile'],
+                    ['awsenv-aws',
+                     'configure',
+                     'set',
+                     'aws_secret_access_key',
+                     '',
+                     '--profile',
+                     'awsenv-profile'],
+                    ['awsenv-aws',
+                     'configure',
+                     'set',
+                     'output',
+                     'json',
+                     '--profile',
+                     'awsenv-profile'],
+                    ['awsenv-aws',
+                     'configure',
+                     'set',
+                     'region',
+                     'us-east-1',
+                     '--profile',
+                     'awsenv-profile']]
+        self.assertEqual(L, expected)
+
+    def test_auth_nodevice(self):
+        config = self._makeOne("profile")
+        self.assertEqual(config.auth(), 0)
+
+    def test_auth_notexpired(self):
+        config = self._makeOne("profile")
+        config.envdata["DEVENV_AWSENV_MFA_DEVICE"] = "device"
+        config.derived["AWS_SESSION_EXPIRES"] = '2037-01-01T08:57:37+00:00'
+        self.assertEqual(config.auth(), 0)
+
+    def test_auth_expired_no_authsecret_success(self):
+        config = self._makeOne("profile")
+        config.envdata["DEVENV_AWSENV_MFA_DEVICE"] = "device"
+        config.envdata["AWS_ACCOUNT_ID"] = '123'
+        config.derived["AWS_SESSION_EXPIRES"] = '2022-01-01T08:57:37+00:00'
+        config.which = lambda cmd: cmd
+        config.inp = lambda x: "12345"
+        config.errout = lambda cmd: 0
+        class Result:
+            pass
+        def run(cmd, env):
+            self.assertEqual(cmd[0], "awsenv-aws")
+            result = Result()
+            result.returncode = 0
+            result.stderr = ''
+            result.stdout = json.dumps(
+                {"Credentials":
+                 {
+                     "SessionToken": "token",
+                     "SecretAccessKey": "key",
+                     "AccessKeyId": "id",
+                     "Expiration": "expires",
+                 }
+                 }
+            )
+            return result
+        config.run = run
+        self.assertEqual(config.auth(), 0)
+        self.assertEqual(
+            config.derived,
+            {
+                "AWS_SESSION_TOKEN":"token",
+                "AWS_ACCESS_KEY_ID":"id",
+                "AWS_SECRET_ACCESS_KEY":"key",
+                "AWS_SESSION_EXPIRES":"expires"
+             }
+        )
+
+    def test_auth_expired_with_authsecret_success(self):
+        config = self._makeOne("profile")
+        config.envdata["DEVENV_AWSENV_MFA_DEVICE"] = "device"
+        config.envdata["DEVENV_AWSENV_MFA_OTP_AUTHSECRET"] = "E2OVN6XH7LXUR22ZQ64MAEM2NQ22JEKILF3QUV7W7S6JHYL5BZVAFZNDDLSRW3AZ"
+        config.envdata["AWS_ACCOUNT_ID"] = '123'
+        config.derived["AWS_SESSION_EXPIRES"] = '2022-01-01T08:57:37+00:00'
+        config.which = lambda cmd: cmd
+        config.inp = lambda x: "12345"
+        config.errout = lambda cmd: 0
+        class Result:
+            pass
+        def run(cmd, env):
+            self.assertEqual(cmd[0], "awsenv-aws")
+            result = Result()
+            result.returncode = 0
+            result.stderr = ''
+            result.stdout = json.dumps(
+                {"Credentials":
+                 {
+                     "SessionToken": "token",
+                     "SecretAccessKey": "key",
+                     "AccessKeyId": "id",
+                     "Expiration": "expires",
+                 }
+                 }
+            )
+            return result
+        config.run = run
+        self.assertEqual(config.auth(), 0)
+        self.assertEqual(
+            config.derived,
+            {
+                "AWS_SESSION_TOKEN":"token",
+                "AWS_ACCESS_KEY_ID":"id",
+                "AWS_SECRET_ACCESS_KEY":"key",
+                "AWS_SESSION_EXPIRES":"expires"
+             }
+        )
 
 if __name__ == '__main__':
     unittest.main()
