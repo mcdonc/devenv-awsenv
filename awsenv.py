@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 
 OURNAME = "devenv-awsenv"
 
@@ -33,16 +34,12 @@ class Config:
             env = "dev"
         self.current_env = env
         self.keyring = keyring
-        envdata = self.load(self.current_env)
-        if envdata is None:
-            template = self.get_template()
-            self.save(self.current_env, template)
-            envdata = self.load(self.current_env)
+        self.initialize_missing(self.current_env)
+        self.envdata = self.load(self.current_env)
         derived = self.load_derived(self.current_env)
         if derived is None:
             self.save_derived(self.current_env, '{}')
             derived = self.load_derived(self.current_env)
-        self.envdata = envdata
         self.derived = derived
 
     def get_password(self, key, default=None):
@@ -77,23 +74,14 @@ class Config:
         with open(path) as f:
             return f.read()
 
-    def edit(self, env):
-        if env is None:
-            env = self.current_env
+    def edit(self):
+        env = self.current_env
 
         editor = os.environ.get('EDITOR', 'nano')
 
         old = self.get_password(env)
 
-        template = self.get_template()
-
-        if old is None:
-            old = template
-
-        try:
-            old_deserialized = json.loads(old)
-        except Exception:
-            old_deserialized = {}
+        old_deserialized = json.loads(old)
 
         with tempfile.NamedTemporaryFile(
                 suffix=".json", mode="w+", delete=False) as tf:
@@ -104,24 +92,25 @@ class Config:
         try:
             cmd = shlex.split(editor)
             cmd.append(temp_filename)
-            subprocess.call(cmd)
+            self.call(cmd)
             with open(temp_filename) as f:
                 new = f.read()
                 try:
                     new_deserialized = json.loads(new)
                 except Exception:
                     self.save(env, new)
-                    import traceback; traceback.print_exc()
-                    sys.stderr.write(
-                        "Could not deserialize new data, re-edit")
-                    return
+                    exc = traceback.format_exc()
+                    self.errout(exc)
+                    self.errout("Could not deserialize new data, re-edit")
+                    return 1
                 else:
                     missing = self.get_missing(new_deserialized)
                     if missing:
                         self.save(env, new)
-                        raise ValueError(
+                        self.errout(
                             f"missing required keys: {missing}, re-edit"
                         )
+                        return 1
                     self.save(env, new)
                     derived = self.derived_after_changes(
                         env,
@@ -129,18 +118,17 @@ class Config:
                         new_deserialized,
                     )
                     self.save_derived(env, derived)
-                    if env == self.current_env:
+                    if old_deserialized != new_deserialized:
                         self.show_activate_changes_tip()
         finally:
             os.unlink(temp_filename)
 
     def show_activate_changes_tip(self):
-        sys.stderr.write(
+        self.errout(
             "To activate your changes, run:\n\n"
-            'awsenv auth && eval "$(awsenv export)"\n\n'
+            '  awsenv auth && eval "$(awsenv export)"\n\n'
             "Or exit and reenter the devenv shell\n"
         )
-        sys.stderr.flush()
 
     def save(self, env, serialized):
         self.set_password(env, serialized)
@@ -158,11 +146,22 @@ class Config:
     def load_derived(self, env, default=None):
         return self.load(f"{env}-derived", default)
 
+    def initialize_missing(self, env):
+        meta_str = self.get_password("__meta__")
+        if meta_str is None:
+            meta_str = json.dumps({"envs": [self.current_env]})
+        meta = json.loads(meta_str)
+        if not env in meta["envs"]:
+            meta["envs"].append(env)
+        meta_str = json.dumps(meta, indent=4)
+        self.set_password("__meta__", meta_str)
+        env_str = self.get_password(env, None)
+        if env_str is None:
+            template = self.get_template()
+            self.save(env, template)
+
     def get_meta(self):
         meta = self.get_password("__meta__")
-        if meta is None:
-            meta = json.dumps({"envs": ["dev"]}, indent=4)
-            self.set_password("__meta__", meta)
         return meta
 
     def load_meta(self):
@@ -173,11 +172,8 @@ class Config:
         serialized = json.dumps(config, indent=4, sort_keys=True)
         return serialized
 
-    def get_aws_session_expires(self):
-        return self.derived.get("AWS_SESSION_EXPIRES")
-
     def mfaleft(self):
-        exprstr = self.get_aws_session_expires()
+        exprstr = self.derived.get("AWS_SESSION_EXPIRES")
         if not exprstr:
             return "-"
         exprdt = datetime.fromisoformat(exprstr)
@@ -235,8 +231,7 @@ class Config:
                 code
             ]
             result = self.run(cmd, env=envdata)
-            sys.stderr.write(result.stderr)
-            sys.stderr.flush()
+            self.errout(result.stderr)
             returncode = result.returncode
             if returncode != 0 and secret:
                 sys.exit(1)
@@ -251,8 +246,7 @@ class Config:
         }
         self.derived = derived
         self.save_derived(self.current_env, self.serialize(derived))
-        sys.stderr.write(f"AWS MFA auth performed for {self.current_env}\n")
-        sys.stderr.flush()
+        self.errout(f"AWS MFA auth performed for {self.current_env}\n")
         return derived
 
     def list(self):
@@ -260,38 +254,37 @@ class Config:
         envs = meta["envs"]
         current = self.current_env
         for env in sorted(envs):
-            sys.stdout.write(env)
             if env == current:
-                print("*")
+                self.out(f"{env} *")
             else:
-                print()
+                self.out(env)
 
     def delete(self, name):
         meta = self.load_meta()
         envs = meta["envs"]
         current = self.current_env
         if name == current:
-            print("Cannot delete current env")
-            sys.exit(1)
+            self.errout("Cannot delete current env")
+            return 1
         if not name in envs:
-            print(f"No such env {name}")
-            sys.exit(1)
+            self.errout(f"No such env {name}")
+            return 1
         envs.remove(name)
         meta = json.dumps(meta)
         self.set_password("__meta__", meta)
         self.keyring.delete_password(OURNAME, name)
-        self.keyring.delete_password(OURNAME, "{name}-derived")
+        self.keyring.delete_password(OURNAME, f"{name}-derived")
 
     def copy(self, src, target):
         meta = self.load_meta()
         envs = meta["envs"]
         if not src in envs:
-            print(f"No such env {src}")
-            sys.exit(1)
+            self.errout(f"No such env {src}")
+            return 1
         current = self.current_env
         if target == current:
-            print(f"Cannot copy on top of current env {target}")
-            sys.exit(1)
+            self.errout(f"Cannot copy on top of current env {target}")
+            return 1
         copied = self.get_password(src)
         copied_derived = self.get_password(f"{src}-derived")
         if not target in envs:
@@ -334,10 +327,10 @@ class Config:
         for k, v in sorted(envvars.items()):
             if not k.startswith("DEVENV_AWSENV_"):
                 quoted = shlex.quote(v)
-                print(f"{k}={quoted}")
-                print(f"export {k}")
+                self.out(f"{k}={quoted}")
+                self.out(f"export {k}")
 
-    def run(self, cmd, **kw):
+    def run(self, cmd, **kw): # pragma: no cover
         return subprocess.run(
             cmd,
             capture_output=True,
@@ -345,7 +338,17 @@ class Config:
             **kw
         )
 
-if __name__ == "__main__":
+    def call(self, cmd): # pragma: no cover
+        return subprocess.call(cmd)
+
+    def out(self, data): # pragma: no cover
+        print(data)
+
+    def errout(self, data): # pragma: no cover
+        sys.stderr.write(data + "\n")
+        sys.stderr.flush()
+
+if __name__ == "__main__": # pragma: no cover
     main_parser = argparse.ArgumentParser(description="awsenv")
     subparsers= main_parser.add_subparsers(
         dest="command",
@@ -353,10 +356,7 @@ if __name__ == "__main__":
         help="No arguments means show current default awsenv"
     )
     edit_parser = subparsers.add_parser(
-        "edit", help="Edit an environment"
-    )
-    edit_parser.add_argument(
-        "name", help="The environment name to edit", default=None, nargs="?"
+        "edit", help="Edit the current environment"
     )
 
     auth_parser = subparsers.add_parser(
@@ -408,26 +408,31 @@ if __name__ == "__main__":
     env = os.environ.get("DEVENV_AWSENV")
     config = Config(env, keyring)
 
+    def exit(returncode):
+        if returncode is None:
+            returncode = 0
+        sys.exit(returncode)
+
     if not args.command:
         print(config.current_env)
 
     if args.command == "edit":
-        config.edit(args.name)
+        exit(config.edit())
 
     if args.command == "auth":
-        config.auth(args.force)
+        exit(config.auth(args.force))
 
     if args.command == "mfaleft":
-        print(config.mfaleft())
-        
+        exit(print(config.mfaleft()))
+
     if args.command == "list":
-        config.list()
+        exit(config.list())
 
     if args.command == "delete":
-        config.delete(args.name)
+        exit(config.delete(args.name))
 
     if args.command == "copy":
-        config.copy(args.source, args.target)
+        exit(config.copy(args.source, args.target))
 
     if args.command == "export":
-        config.export()
+        exit(config.export())

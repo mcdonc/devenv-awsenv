@@ -9,7 +9,7 @@ class FakeKeyring:
     errors = FakeErrors()
     def __init__(self):
         self.meta = None
-        self.profiles = {}
+        self.envs = {}
 
     def get_password(self, ourname, key):
         import keyring
@@ -17,26 +17,26 @@ class FakeKeyring:
             if self.meta is None:
                 raise keyring.errors.InitError
             return self.meta
-        profile = self.profiles.get(key)
-        if profile is None:
+        env = self.envs.get(key)
+        if env is None:
             raise keyring.errors.InitError
-        return profile
+        return env
 
     def set_password(self, ourname, key, serialized):
         if key == '__meta__':
             self.meta = serialized
         else:
-            self.profiles[key] = serialized
+            self.envs[key] = serialized
 
     def delete_password(self, ourname, key):
-        self.profiles.pop(key, None)
+        self.envs.pop(key, None)
 
 class TestConfig(unittest.TestCase):
     def __init__(self, name):
         super().__init__(name)
         here = os.path.dirname(os.path.abspath(__file__))
         self.template_path = os.path.join(here, "template.json")
-        os.environ["DEVENV_SECRETS_TEMPLATE"] = self.template_path
+        os.environ["DEVENV_AWSENV_TEMPLATE"] = self.template_path
 
     def _makeOne(self, env, keyring=None):
         from awsenv import Config
@@ -45,37 +45,51 @@ class TestConfig(unittest.TestCase):
         config = Config(env, keyring)
         return config
 
-    def test_ctor_noprofile(self):
+    def test_ctor_noenv(self):
         keyring = FakeKeyring()
         config = self._makeOne(None, keyring)
         self.assertEqual(config.current_env, "dev")
         self.assertEqual(
             json.loads(config.keyring.meta),
-            json.loads('{"profiles": ["dev"]}')
+            json.loads('{"envs": ["dev"]}')
         )
         with open(self.template_path) as f:
             self.assertEqual(
-                config.keyring.profiles["dev"],
+                config.keyring.envs["dev"],
                 f.read()
             )
+        self.assertEqual(
+            config.keyring.envs["dev-derived"],
+            '{}'
+        )
 
-    def test_ctor_withprofile(self):
+    def test_ctor_withenv(self):
         keyring = FakeKeyring()
-        config = self._makeOne("profile", keyring)
-        self.assertEqual(config.current_env, "profile")
+        config = self._makeOne("dev", keyring)
+        self.assertEqual(config.current_env, "dev")
         self.assertEqual(
             json.loads(config.keyring.meta),
-            json.loads('{"profiles": ["profile"]}')
+            json.loads('{"envs": ["dev"]}')
         )
         with open(self.template_path) as f:
             self.assertEqual(
-                config.keyring.profiles["profile"],
+                config.keyring.envs["dev"],
                 f.read()
             )
+        self.assertEqual(
+            config.keyring.envs["dev-derived"],
+            '{}'
+        )
 
     def test_edit_changes_noerror(self):
         config = self._makeOne("profile")
-        new = '{"SECRET1":"a"}'
+        new = """
+        {"AWS_ACCOUNT_ID":"a",
+        "AWS_SECRET_ACCESS_KEY":"b",
+        "AWS_DEFAULT_REGION":"c",
+        "AWS_ACCESS_KEY_ID":"d",
+        "AWS_DEFAULT_OUTPUT":"e"}
+        """
         def call(cmd):
             fn = cmd[-1]
             with open(fn, "w") as f:
@@ -84,12 +98,19 @@ class TestConfig(unittest.TestCase):
         capture = []
         config.errout = capture.append
         config.edit()
-        self.assertEqual(config.keyring.profiles["profile"], new)
+        self.assertEqual(config.keyring.envs["profile"], new)
+        self.assertEqual(config.keyring.envs["profile-derived"], '{}')
         self.assertTrue(capture[0].startswith("To activate"))
 
     def test_edit_changes_witherror(self):
         config = self._makeOne("profile")
-        new = '{"SECRET1":"a}'
+        new = """
+        {"AWS_ACCOUNT_ID":"a",
+        "AWS_SECRET_ACCESS_KEY":"b",
+        "AWS_DEFAULT_REGION":"c",
+        "AWS_ACCESS_KEY_ID":"d",
+        "AWS_DEFAULT_OUTPUT":"e
+        """
         def call(cmd):
             fn = cmd[-1]
             with open(fn, "w") as f:
@@ -98,12 +119,34 @@ class TestConfig(unittest.TestCase):
         capture = []
         config.errout = capture.append
         config.edit()
-        self.assertEqual(config.keyring.profiles["profile"], new)
+        self.assertEqual(config.keyring.envs["profile"], new)
         self.assertTrue(capture[1].startswith("Could not deserialize"))
+
+    def test_edit_changes_withmissing(self):
+        config = self._makeOne("profile")
+        new = """
+        {"AWS_ACCOUNT_ID":"a",
+        "AWS_SECRET_ACCESS_KEY":"b",
+        "AWS_DEFAULT_REGION":"c",
+        "AWS_DEFAULT_OUTPUT":"e"}
+        """
+        def call(cmd):
+            fn = cmd[-1]
+            with open(fn, "w") as f:
+                f.write(new)
+        config.call = call
+        capture = []
+        config.errout = capture.append
+        config.edit()
+        self.assertEqual(config.keyring.envs["profile"], new)
+        self.assertEqual(
+            capture[0],
+            "missing required keys: {'AWS_ACCESS_KEY_ID'}, re-edit"
+        )
 
     def test_edit_nochanges(self):
         config = self._makeOne("profile")
-        new = config.keyring.profiles["profile"]
+        new = config.keyring.envs["profile"]
         def call(cmd):
             fn = cmd[-1]
             with open(fn, "w") as f:
@@ -112,12 +155,12 @@ class TestConfig(unittest.TestCase):
         capture = []
         config.errout = capture.append
         config.edit()
-        self.assertEqual(config.keyring.profiles["profile"], new)
+        self.assertEqual(config.keyring.envs["profile"], new)
         self.assertFalse(capture)
 
     def test_load_cant_deserialize(self):
         config = self._makeOne("profile")
-        config.keyring.profiles["profile"] = "{malformed"
+        config.keyring.envs["profile"] = "{malformed"
         result = config.load("profile", 123)
         self.assertEqual(result, 123)
 
@@ -126,7 +169,7 @@ class TestConfig(unittest.TestCase):
         capture = []
         config.errout = capture.append
         config.copy("wontexist", "another")
-        self.assertEqual(capture[0], "No such profile wontexist")
+        self.assertEqual(capture[0], "No such env wontexist")
 
     def test_copy_atop_current(self):
         config = self._makeOne("profile")
@@ -135,15 +178,15 @@ class TestConfig(unittest.TestCase):
         config.copy("profile", "profile")
         self.assertEqual(
             capture[0],
-            "Cannot copy on top of current profile profile"
+            "Cannot copy on top of current env profile"
         )
 
     def test_copy_success(self):
         config = self._makeOne("profile")
         config.copy("profile", "another")
         self.assertEqual(
-            config.keyring.profiles["profile"],
-            config.keyring.profiles["another"]
+            config.keyring.envs["profile"],
+            config.keyring.envs["another"]
         )
 
     def test_delete_current(self):
@@ -151,36 +194,39 @@ class TestConfig(unittest.TestCase):
         capture = []
         config.errout = capture.append
         config.delete("profile")
-        self.assertEqual(capture[0], "Cannot delete current profile")
+        self.assertEqual(capture[0], "Cannot delete current env")
 
-    def test_delete_nousuch(self):
+    def test_delete_nosuch(self):
         config = self._makeOne("profile")
         capture = []
         config.errout = capture.append
         config.delete("nope")
-        self.assertEqual(capture[0], "No such profile nope")
+        self.assertEqual(capture[0], "No such env nope")
 
     def test_delete_works(self):
         config = self._makeOne("profile")
-        config.keyring.profiles["another"] = "{}"
+        config.keyring.envs["another"] = "{}"
+        config.keyring.envs["another-derived"] = "{}"
         meta = json.loads(config.keyring.meta)
-        meta["profiles"] = ["profile", "another"]
+        meta["envs"] = ["profile", "another"]
         config.keyring.meta = json.dumps(meta)
         capture = []
         config.errout = capture.append
         config.delete("another")
         self.assertFalse(capture)
-        self.assertEqual(list(config.keyring.profiles.keys()), ["profile"])
+        self.assertEqual(
+            list(config.keyring.envs.keys()), ["profile", "profile-derived"]
+        )
         self.assertEqual(
             json.loads(config.keyring.meta),
-            {"profiles": ["profile"]}
+            {"envs": ["profile"]}
         )
 
     def test_list(self):
         config = self._makeOne("profile")
-        config.keyring.profiles["another"] = "{}"
+        config.keyring.envs["another"] = "{}"
         meta = json.loads(config.keyring.meta)
-        meta["profiles"] = ["profile", "another"]
+        meta["envs"] = ["profile", "another"]
         config.keyring.meta = json.dumps(meta)
         capture = []
         config.out = capture.append
@@ -194,12 +240,18 @@ class TestConfig(unittest.TestCase):
         config.export()
         actual = '\n'.join(capture)
         expected = '\n'.join([
-            "DEVENV_SECRETS_PROFILE=profile",
-            "export DEVENV_SECRETS_PROFILE",
-            "MYSECRET=secret",
-            "export MYSECRET",
-            "MYSECRET2=secret2",
-            "export MYSECRET2"
+            "AWS_ACCESS_KEY_ID=''",
+            "export AWS_ACCESS_KEY_ID",
+            "AWS_ACCOUNT_ID=''",
+            "export AWS_ACCOUNT_ID",
+            "AWS_DEFAULT_OUTPUT=''",
+            "export AWS_DEFAULT_OUTPUT",
+            "AWS_DEFAULT_REGION=''",
+            "export AWS_DEFAULT_REGION",
+            "AWS_SECRET_ACCESS_KEY=''",
+            "export AWS_SECRET_ACCESS_KEY",
+            "DEVENV_AWSENV=profile",
+            "export DEVENV_AWSENV",
         ])
         self.assertEqual(actual, expected)
 
@@ -208,6 +260,67 @@ class TestConfig(unittest.TestCase):
         config.initialize_missing("another")
         self.assertEqual(config.get_password("another"), config.get_template())
 
+    def test_get_changed_withchanged(self):
+        config = self._makeOne("profile")
+        old = {"a":1, "b":2}
+        new = {"a":1, "b":3}
+        result = config.get_changed(old, new)
+        self.assertEqual(result, {'b'})
+
+    def test_get_changed_nochanged(self):
+        config = self._makeOne("profile")
+        old = {"a":1, "b":2}
+        new = {"a":1, "b":2}
+        result = config.get_changed(old, new)
+        self.assertEqual(result, set())
+
+    def test_derived_after_changes_nochanges(self):
+        config = self._makeOne("profile")
+        old = {
+            "AWS_ACCESS_KEY_ID":"1",
+            "AWS_ACCOUNT_ID":"1",
+            "AWS_SECRET_ACCESS_KEY":"1",
+            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
+            }
+        new = {
+            "AWS_ACCESS_KEY_ID":"1",
+            "AWS_ACCOUNT_ID":"1",
+            "AWS_SECRET_ACCESS_KEY":"1",
+            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
+            }
+        result = config.derived_after_changes("profile", old, new)
+        self.assertEqual(result, '{}')
+
+    def test_derived_after_changes_withchanges(self):
+        config = self._makeOne("profile")
+        config.keyring.envs["profile-derived"] = '{"a":"5"}'
+        old = {
+            "AWS_ACCESS_KEY_ID":"1",
+            "AWS_ACCOUNT_ID":"1",
+            "AWS_SECRET_ACCESS_KEY":"1",
+            "DEVENV_AWSENV_MFA_DEVICE_NAME":"1",
+            "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"1",
+            }
+        new = {
+            "AWS_ACCESS_KEY_ID":"2",
+            "AWS_ACCOUNT_ID":"2",
+            "AWS_SECRET_ACCESS_KEY":"2",
+            "DEVENV_AWSENV_MFA_DEVICE_NAME":"2",
+            "DEVENV_AWSENV_MFA_OTP_AUTHSECRET":"2",
+            }
+        result = config.derived_after_changes("profile", old, new)
+        self.assertEqual(result, '{"a":"5"}')
+
+    def test_mfaleft_no_aws_session_expires(self):
+        config = self._makeOne("profile")
+        self.assertEqual(config.mfaleft(), '-')
+
+    def test_mfaleft_no_aws_session_expires(self):
+        config = self._makeOne("profile")
+        config.derived["AWS_SESSION_EXPIRES"] =
+        self.assertEqual(config.mfaleft(), '-')
 
 if __name__ == '__main__':
     unittest.main()

@@ -45,9 +45,10 @@
         pkgs.python311.withPackages (python-pkgs: [
           python-pkgs.keyring
           python-pkgs.keyrings-alt
-          python-pkgs.pytest
           python-pkgs.pyotp
+          python-pkgs.pytest
           python-pkgs.coverage
+          python-pkgs.pytest-cov
         ] ++ lib.optionals pkgs.stdenv.isLinux [
           python-pkgs.dbus-python
           python-pkgs.secretstorage
@@ -60,6 +61,8 @@
         scripts.awsenv.exec = lib.mkDefault ''exec ${awsenvpyexe} "${./awsenv.py}" $@'';
         scripts.awsenvpyexe.exec = lib.mkDefault ''exec ${awsenvpyexe} $@'';
         scripts.awsenv-aws.exec = lib.mkDefault ''exec ${cfg.package}/bin/aws $@'';
+        scripts."run-awsenv-tests".exec = lib.mkDefault
+          ''exec ${awsenv_python}/bin/py.test --cov=awsenv --cov-report=term-missing test.py $@'';
         scripts.awsenv-callerident.exec = lib.mkDefault ''
           exec awsenv-aws sts get-caller-identity
         '';
