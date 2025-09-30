@@ -7,6 +7,11 @@
       description = "Use Devenv AWS environments";
       default = false;
     };
+    env = lib.mkOption {
+      type = lib.types.str;
+      description = "Use this awsenv environment at devenv startup";
+      default = "dev";
+    };
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.awscli2;
@@ -36,22 +41,28 @@
       # whatever reason, the cryptography package has a python-3.11 DLL instead
       # of a python-3.12 one in Nix.
       #
-      keyring_python = (
+      awsenv_python = (
         pkgs.python311.withPackages (python-pkgs: [
           python-pkgs.keyring
+          python-pkgs.keyrings-alt
           python-pkgs.pyotp
+          python-pkgs.pytest
+          python-pkgs.coverage
+          python-pkgs.pytest-cov
         ] ++ lib.optionals pkgs.stdenv.isLinux [
           python-pkgs.dbus-python
           python-pkgs.secretstorage
         ]
         )
       );
-      keyringpyexe = "${keyring_python}/bin/python";
+      awsenvpyexe = "${awsenv_python}/bin/python";
     in
       lib.mkIf cfg.enable {
-        scripts.awsenv.exec = lib.mkDefault ''exec ${keyringpyexe} "${./awsenv.py}" $@'';
-        scripts.keyringpyexe.exec = lib.mkDefault keyringpyexe;
+        scripts.awsenv.exec = lib.mkDefault ''exec ${awsenvpyexe} "${./awsenv.py}" $@'';
+        scripts.awsenvpyexe.exec = lib.mkDefault ''exec ${awsenvpyexe} $@'';
         scripts.awsenv-aws.exec = lib.mkDefault ''exec ${cfg.package}/bin/aws $@'';
+        scripts."run-awsenv-tests".exec = lib.mkDefault
+          ''exec ${awsenv_python}/bin/py.test --cov=awsenv --cov-report=term-missing test.py $@'';
         scripts.awsenv-callerident.exec = lib.mkDefault ''
           exec awsenv-aws sts get-caller-identity
         '';
@@ -62,13 +73,14 @@
         in
           {
             DEVENV_AWSENV_TEMPLATE = lib.mkDefault ./template.json;
+            DEVENV_AWSENV = cfg.env;
           } // manage_profiles;
 
         enterShell = lib.mkBefore ''
           awsenv auth && \
           eval "$(awsenv export)" && \
-          echo "⏹️  AWS vars set for $DEVENV_AWSENV" || \
-          echo "⏹️  Did not export AWS vars"
+          echo "⏹️  AWS envvars set for $DEVENV_AWSENV" || \
+          echo "✖️  Could not export AWS envvars"
         '';
       };
 }
