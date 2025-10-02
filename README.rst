@@ -136,14 +136,6 @@ named ``another`` via:
 
    awsenv copy dev another
 
-You can then run:
-
-.. code-block::
-
-   awsenv edit another
-
-To make changes suitable for that new environment.
-
 To change the current environment, edit the ``awsenv.env`` setting in your
 ``devenv.nix``.  Note that awsenv environments are not local to a specific
 devenv environmnent or directory or anything, they are shared by all devenv
@@ -217,6 +209,16 @@ authenticator secret parameter.
 
 Changelog
 =========
+
+v2.0, Sept 30, 2025
+-------------------
+
+- ``awsenv switch`` was removed.  Instead set ``awsenv.env`` within devenv.nix.
+
+- ``awsenv edit <foo>`` no longer works.  Instead, you can only edit the
+  current environment.
+
+- Test coverage added.
 
 v1.0,June 8, 2025
 -----------------
